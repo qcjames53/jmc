@@ -9,8 +9,8 @@ from time import perf_counter
 from traceback import format_exc
 
 from .compile.header import Header
-from .compile.hooks import register_message
-from .terminal import GlobalData, add_command, Colors, eprint, error_report, get_input, handle_exception, press_enter, pprint, RestartException
+from .compile.hooks import register_message, register_status, register_context, register_info
+from .terminal import GlobalData, add_command, Colors, eprint, error_report, get_input, handle_exception, press_enter, pprint, statprint, statprint_context, RestartException
 from .compile import compile_jmc, Logger, EXCEPTIONS, get_debug_log, get_info_log
 
 global_data: GlobalData = GlobalData()
@@ -47,7 +47,9 @@ def exit_() -> None:
 def compile_(*envs: str) -> None:
     """Compile main JMC file"""
     register_message(lambda msg: pprint(msg, Colors.YELLOW))
-    pprint("Compiling...", Colors.INFO)
+    register_info(lambda msg: pprint(msg, Colors.INFO))
+    register_status(statprint)
+    register_context(statprint_context)
     if not global_data.config:
         global_data.config.ask_and_save()
         return
@@ -55,10 +57,8 @@ def compile_(*envs: str) -> None:
         start_time = perf_counter()
         Header().envs = list(envs)
         compile_jmc(global_data.config, debug=True)
-        finished_compiled_time = Header().finished_compiled_time
         stop_time = perf_counter()
-        pprint(
-            f"Compiled successfully in {finished_compiled_time - start_time:.5f} seconds, datapack built in {stop_time - finished_compiled_time:.5f} seconds", Colors.INFO)
+        pprint(f"Compiled successfully in {stop_time - start_time:.3f} seconds", Colors.INFO)
     except EXCEPTIONS as error:
         logger.debug(format_exc())
         error_report(error)

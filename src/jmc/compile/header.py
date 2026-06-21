@@ -58,7 +58,6 @@ class Header(SingleTon):
     """List of custom json file types"""
     post_process: list[Callable[["DataPack"], Any]]
     """Python function to run before building datapack"""
-    finished_compiled_time: float
     nometa: bool
     """Whether hand pack.mcmeta to user"""
     envs: list[str]
@@ -97,7 +96,6 @@ class Header(SingleTon):
         obj.dels = set()
         obj.resources = set()
         obj.post_process = []
-        obj.finished_compiled_time = 0
         obj.nometa = False
         obj.force_bst = False
         obj.show_private_command = False

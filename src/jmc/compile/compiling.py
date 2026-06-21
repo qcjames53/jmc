@@ -11,6 +11,7 @@ from jmc.compile.utils import merge_dicts
 from .pack_version import PackVersionFeature
 from .header import Header
 from .header_parse import parse_header
+from .hooks import emit_info, emit_message, emit_status
 from .lexer import Lexer
 from .log import Logger
 from .datapack import DataPack
@@ -34,13 +35,16 @@ def compile_jmc(config: "Configuration", debug: bool = False) -> None:
     """
     logger.info("Configuration:\n" + dumps(config.toJSON(), indent=4))
     Header.clear()
+    t = perf_counter()
     read_header(config)
     is_delete, cert_config, cert_file = read_cert(config)
-    logger.info("Parsing")
     lexer = Lexer(config)
+    lex_elapsed = perf_counter() - t
+    n = lexer._files_visited
+    emit_info(f"Lexed {n} source {'file' if n == 1 else 'files'} in {lex_elapsed:.3f}s")
     if debug:
         logger.info(f"Datapack :{lexer.datapack!r}")
-    build(lexer.datapack, config, is_delete, cert_config, cert_file)
+    build(lexer.datapack, config, is_delete, cert_config, cert_file, _t=perf_counter())
 
 
 def cert_config_to_string(cert_config: dict[str, str]) -> str:
@@ -265,6 +269,7 @@ def build(
     cert_config: dict[str, str],
     cert_file: Path,
     _is_virtual: bool = False,
+    _t: float = 0.0,
 ) -> dict[Path, str] | None:
     """
     Build and write files for minecraft datapack
@@ -283,8 +288,11 @@ def build(
         function_folder = "functions"
 
     logger.debug(f"Building (_is_virtual={_is_virtual})")
+    emit_status("Building datapack files")
+    t = _t or perf_counter()
     datapack.build()
-    header.finished_compiled_time = perf_counter()
+    t = perf_counter()
+    header.finished_compiled_time = t
     output_folder = Path(config.output)
     namespace_folder = output_folder / "data" / config.namespace
     minecraft_folder = output_folder / "data" / "minecraft"
@@ -327,8 +335,36 @@ def build(
                 else:
                     shutil.copy(item, output_folder / item.name)
 
+    has_tick = bool(
+        DataPack.tick_name in datapack.functions
+        and datapack.functions[DataPack.tick_name]
+    )
+
     if not _is_virtual:
+        total_writes = (
+            1  # load.json
+            + (1 if has_tick else 0)
+            + len(datapack.functions)
+            + len(datapack.jsons)
+            + (0 if header.nometa else 1)
+        )
+        files_written = 0
+        write_start = t
+
+        def write_file(path: Path, content: str) -> None:
+            nonlocal files_written
+            files_written += 1
+            try:
+                display = path.relative_to(output_folder).as_posix()
+            except ValueError:
+                display = path.name
+            emit_status("Writing", f"{files_written}/{total_writes}", display)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w+", encoding="utf-8") as file:
+                file.write(content)
+
         functions_tags_folder.mkdir(exist_ok=True, parents=True)
+
     load_tag = functions_tags_folder / "load.json"
     tick_tag = functions_tags_folder / "tick.json"
 
@@ -339,19 +375,14 @@ def build(
     if _is_virtual:
         output[load_tag] = dumps(load_json, indent=4)
     else:
-        with load_tag.open("w+", encoding="utf-8") as file:
-            dump(load_json, file, indent=4)
+        write_file(load_tag, dumps(load_json, indent=4))
 
-    if (
-        DataPack.tick_name in datapack.functions
-        and datapack.functions[DataPack.tick_name]
-    ):
+    if has_tick:
         tick_json["values"].append(f"{config.namespace}:{DataPack.tick_name}")
         if _is_virtual:
             output[tick_tag] = dumps(tick_json, indent=4)
         else:
-            with tick_tag.open("w+", encoding="utf-8") as file:
-                dump(tick_json, file, indent=4)
+            write_file(tick_tag, dumps(tick_json, indent=4))
 
     for func_path, func in datapack.functions.items():
         namespace = func_path.split("/")[0]
@@ -370,9 +401,7 @@ def build(
         if _is_virtual:
             output[path] = content
         else:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("w+", encoding="utf-8") as file:
-                file.write(content)
+            write_file(path, content)
 
     for json_path, json in datapack.jsons.items():
         namespace = json_path.split("/")[0]
@@ -389,25 +418,25 @@ def build(
             if _is_virtual:
                 output[path] = dumps(json, indent=4)
             else:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with path.open("w+", encoding="utf-8") as file:
-                    dump(json, file, indent=4)
+                write_file(path, dumps(json, indent=4))
+
     if _is_virtual:
         return output
 
     if not header.nometa:
-        with (output_folder / "pack.mcmeta").open("w+", encoding="utf-8") as file:
-            dump(
-                merge_dicts(
-                    {
-                        "pack": {
-                            "pack_format": config.parsed_pack_format,
-                            "description": config.description,
-                        }
-                    },
-                    datapack.custom_pack_meta,
-                ),
-                file,
-                indent=4,
-            )
+        write_file(output_folder / "pack.mcmeta", dumps(
+            merge_dicts(
+                {
+                    "pack": {
+                        "pack_format": config.parsed_pack_format,
+                        "description": config.description,
+                    }
+                },
+                datapack.custom_pack_meta,
+            ),
+            indent=4,
+        ))
+
+    write_elapsed = perf_counter() - write_start
+    emit_info(f"Wrote {files_written} datapack {'file' if files_written == 1 else 'files'} to disk in {write_elapsed:.3f}s")
     return None
