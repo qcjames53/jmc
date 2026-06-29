@@ -11,7 +11,7 @@ from jmc.compile.utils import merge_dicts
 from .pack_version import PackVersionFeature
 from .header import Header
 from .header_parse import parse_header
-from .hooks import emit_info, emit_message, emit_status
+from .hooks import emit_done, emit_status, emit_tick
 from .lexer import Lexer
 from .log import Logger
 from .datapack import DataPack
@@ -35,16 +35,13 @@ def compile_jmc(config: "Configuration", debug: bool = False) -> None:
     """
     logger.info("Configuration:\n" + dumps(config.toJSON(), indent=4))
     Header.clear()
-    t = perf_counter()
     read_header(config)
     is_delete, cert_config, cert_file = read_cert(config)
     lexer = Lexer(config)
-    lex_elapsed = perf_counter() - t
-    n = lexer._files_visited
-    emit_info(f"Lexed {n} source {'file' if n == 1 else 'files'} in {lex_elapsed:.3f}s")
+    emit_done()
     if debug:
         logger.info(f"Datapack :{lexer.datapack!r}")
-    build(lexer.datapack, config, is_delete, cert_config, cert_file, _t=perf_counter())
+    build(lexer.datapack, config, is_delete, cert_config, cert_file)
 
 
 def cert_config_to_string(cert_config: dict[str, str]) -> str:
@@ -121,9 +118,11 @@ def read_header(config: "Configuration", _test_file: str | None = None) -> bool:
         else:
             header_str = _test_file
         logger.info(f"Parsing {header_file}")
+        emit_status("Reading headers")
         parse_header(
             header_str, header_file.as_posix(), parent_target, namespace_path, config
         )
+        emit_done()
         return True
 
     logger.info("Header file not found.")
@@ -269,7 +268,6 @@ def build(
     cert_config: dict[str, str],
     cert_file: Path,
     _is_virtual: bool = False,
-    _t: float = 0.0,
 ) -> dict[Path, str] | None:
     """
     Build and write files for minecraft datapack
@@ -288,8 +286,6 @@ def build(
         function_folder = "functions"
 
     logger.debug(f"Building (_is_virtual={_is_virtual})")
-    emit_status("Building datapack files")
-    t = _t or perf_counter()
     datapack.build()
     t = perf_counter()
     header.finished_compiled_time = t
@@ -349,21 +345,17 @@ def build(
             + (0 if header.nometa else 1)
         )
         files_written = 0
-        write_start = t
 
         def write_file(path: Path, content: str) -> None:
             nonlocal files_written
             files_written += 1
-            try:
-                display = path.relative_to(output_folder).as_posix()
-            except ValueError:
-                display = path.name
-            emit_status("Writing", f"{files_written}/{total_writes}", display)
+            emit_tick()
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("w+", encoding="utf-8") as file:
                 file.write(content)
 
         functions_tags_folder.mkdir(exist_ok=True, parents=True)
+        emit_status("Writing", total_writes)
 
     load_tag = functions_tags_folder / "load.json"
     tick_tag = functions_tags_folder / "tick.json"
@@ -437,6 +429,5 @@ def build(
             indent=4,
         ))
 
-    write_elapsed = perf_counter() - write_start
-    emit_info(f"Wrote {files_written} datapack {'file' if files_written == 1 else 'files'} to disk in {write_elapsed:.3f}s")
+    emit_done()
     return None

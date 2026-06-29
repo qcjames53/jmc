@@ -13,7 +13,7 @@ from ...exception import (
     JMCValueError,
     relative_file_name,
 )
-from ...hooks import emit_context, emit_message
+from ...hooks import emit_message
 from ..utils import ArgType, NumberType, find_scoreboard_player_type
 from ..jmc_function import JMCFunction, FuncType, func_property
 from .utils.isolated import IsolatedEnvironment
@@ -1379,11 +1379,6 @@ class JMCPythonFile(JMCFunction):
                 self.tokenizer,
             ) from error
         try:
-            display_path = new_path.relative_to(Path(self.tokenizer.file_path).parent)
-        except ValueError:
-            display_path = new_path.name
-        emit_context(f"Executing {display_path}")
-        try:
             output = ISOLATED_ENVIRONMENT.run(
                 python_code, self.args["env"] if self.args["env"] else None
             )
@@ -1460,7 +1455,6 @@ class JMCPython(JMCFunction):
                 self.clear_indent(line, indent) for line in python_lines
             )
         token = self.raw_args["pythonCode"].token
-        emit_context(f"Executing {relative_file_name(self.tokenizer.file_path, token.line)}")
         try:
             output = ISOLATED_ENVIRONMENT.run(
                 python_code, self.args["env"] if self.args["env"] else None

@@ -1,5 +1,5 @@
 from .configuration import GlobalData
-from .utils import Colors, eprint, get_input, pprint
+from .utils import Colors, abort_progress, eprint, get_input, pprint
 from ..compile import Logger
 
 logger = Logger(__name__)
@@ -19,6 +19,7 @@ def handle_command(given_command: str) -> None:
     try:
         command_func(*arguments)
     except TypeError as error:
+        abort_progress()
         msg: str = error.args[0]
         msg = msg.replace("()", " command").replace("positional argument", "argument")
         eprint(msg)

@@ -1,8 +1,9 @@
 from typing import Callable
 
 _message_handler: Callable[[str], None] = print
-_status_handler: Callable[..., None] = lambda pn, c="", pr="": print(f"{pn}…")
-_context_handler: Callable[[str], None] = lambda _: None
+_status_handler: Callable[..., None] = lambda action, file_count=None: print(f"{action}")
+_tick_handler: Callable[[], None] = lambda: None
+_done_handler: Callable[[], None] = lambda: None
 
 
 def register_message(fn: Callable[[str], None]) -> None:
@@ -17,6 +18,21 @@ def register_message(fn: Callable[[str], None]) -> None:
     _message_handler = fn
 
 
+def register_status(fn: Callable[..., None]) -> None:
+    global _status_handler
+    _status_handler = fn
+
+
+def register_tick(fn: Callable[[], None]) -> None:
+    global _tick_handler
+    _tick_handler = fn
+
+
+def register_done(fn: Callable[[], None]) -> None:
+    global _done_handler
+    _done_handler = fn
+
+
 def emit_message(message: str) -> None:
     """Emit a user-facing message through the registered handler.
 
@@ -25,31 +41,13 @@ def emit_message(message: str) -> None:
     _message_handler(message)
 
 
-def register_status(fn: Callable[..., None]) -> None:
-    global _status_handler
-    _status_handler = fn
+def emit_status(action: str, file_count: int | None = None) -> None:
+    _status_handler(action, file_count)
 
 
-def emit_status(process_name: str, progress: str = "", context: str = "") -> None:
-    _status_handler(process_name, progress, context)
+def emit_tick() -> None:
+    _tick_handler()
 
 
-def register_context(fn: Callable[[str], None]) -> None:
-    global _context_handler
-    _context_handler = fn
-
-
-def emit_context(context: str) -> None:
-    _context_handler(context)
-
-
-_info_handler: Callable[[str], None] = print
-
-
-def register_info(fn: Callable[[str], None]) -> None:
-    global _info_handler
-    _info_handler = fn
-
-
-def emit_info(message: str) -> None:
-    _info_handler(message)
+def emit_done() -> None:
+    _done_handler()

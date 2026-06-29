@@ -9,8 +9,8 @@ from time import perf_counter
 from traceback import format_exc
 
 from .compile.header import Header
-from .compile.hooks import register_message, register_status, register_context, register_info
-from .terminal import GlobalData, add_command, Colors, eprint, error_report, get_input, handle_exception, press_enter, pprint, statprint, statprint_context, RestartException
+from .compile.hooks import register_message, register_status, register_tick, register_done
+from .terminal import GlobalData, add_command, Colors, eprint, error_report, get_input, handle_exception, press_enter, pprint, handle_message_hook, handle_status_hook, handle_tick_hook, handle_done_hook, abort_progress, RestartException
 from .compile import compile_jmc, Logger, EXCEPTIONS, get_debug_log, get_info_log
 
 global_data: GlobalData = GlobalData()
@@ -46,10 +46,10 @@ def exit_() -> None:
 @add_command("compile [env ...]", "compile")
 def compile_(*envs: str) -> None:
     """Compile main JMC file"""
-    register_message(lambda msg: pprint(msg, Colors.YELLOW))
-    register_info(lambda msg: pprint(msg, Colors.INFO))
-    register_status(statprint)
-    register_context(statprint_context)
+    register_message(handle_message_hook)
+    register_status(handle_status_hook)
+    register_tick(handle_tick_hook)
+    register_done(handle_done_hook)
     if not global_data.config:
         global_data.config.ask_and_save()
         return
@@ -58,11 +58,13 @@ def compile_(*envs: str) -> None:
         Header().envs = list(envs)
         compile_jmc(global_data.config, debug=True)
         stop_time = perf_counter()
-        pprint(f"Compiled successfully in {stop_time - start_time:.3f} seconds", Colors.INFO)
+        pprint(f"Compiled successfully ({stop_time - start_time:.3f}s)", Colors.INFO)
     except EXCEPTIONS as error:
+        abort_progress()
         logger.debug(format_exc())
         error_report(error)
     except Exception as error:
+        abort_progress()
         logger.exception("Non-JMC Error occur")
         handle_exception(error, global_data.EVENT, is_ok=False)
 

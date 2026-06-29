@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from .decorator_parse import DECORATORS
 from .header import Header
-from .hooks import emit_status
+from .hooks import emit_status, emit_tick
 from .exception import (
     JMCDecodeJSONError,
     JMCFileNotFoundError,
@@ -186,6 +186,7 @@ class Lexer:
             self._file_count = 1
         else:
             self._file_count = self._count_files(Path(config.target), set())
+        emit_status("Lexing", self._file_count)
         self.parse_file(Path(self.config.target), _test_file, is_load=True)
 
         logger.debug("Load Function")
@@ -242,12 +243,7 @@ class Lexer:
         self.__update_load(file_path_str, raw_string)
 
         self._files_visited += 1
-        base = Path(self.config.target).parent
-        try:
-            display = file_path.relative_to(base).as_posix()
-        except ValueError:
-            display = file_path.name
-        emit_status("Lexing", f"{self._files_visited}/{self._file_count}", display)
+        emit_tick()
 
         for command in tokenizer.programs:
             if command[0].string == "function" and not self._is_vanilla_func(command):

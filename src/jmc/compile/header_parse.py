@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 
 from .command.utils import eval_expr, hash_string_to_string
-from .hooks import emit_status
+from .hooks import emit_tick
 from .utils import clean_up_paren_token, is_connected, get_mc_uuid, is_number
 from .header import Header, MacroFactory
 from .tokenizer import Token, TokenType, Tokenizer
@@ -294,11 +294,7 @@ def __parse_header(
     namespace_path: Path,
     config: "Configuration",
 ) -> Header:
-    try:
-        display = Path(file_name).relative_to(parent_target).as_posix()
-    except ValueError:
-        display = Path(file_name).name
-    emit_status("Reading headers", context=display)
+    emit_tick()
     header = Header()
     lines = header_str.split("\n")
     for line, line_str in enumerate(lines):

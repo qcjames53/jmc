@@ -3,8 +3,7 @@
 from typing import cast
 from ...pack_version import PackVersionFeature
 from ...tokenizer import Token, Tokenizer, TokenType
-from ...exception import JMCSyntaxException, JMCValueError, relative_file_name
-from ...hooks import emit_context
+from ...exception import JMCSyntaxException, JMCValueError
 from ..jmc_function import JMCFunction, FuncType, func_property
 from ..utils import (
     ArgType,
@@ -67,8 +66,6 @@ class HardcodeRepeat(JMCFunction):
             )
 
         commands: list[str] = []
-        loc = relative_file_name(self.tokenizer.file_path, self.token.line, self.token.col)
-        emit_context(f"Hardcode.repeat at {loc}")
         for i in range(start, stop, step):
             try:
                 commands.extend(
@@ -125,8 +122,6 @@ class HardcodeRepeatList(JMCFunction):
             self.raw_args["strings"].token, self.tokenizer, TokenType.STRING
         )
         commands: list[str] = []
-        loc = relative_file_name(self.tokenizer.file_path, self.token.line, self.token.col)
-        emit_context(f"Hardcode.repeatList at {loc}")
         for i, index in enumerate(strings):
             try:
                 commands.extend(
@@ -212,8 +207,6 @@ class HardcodeRepeatLists(JMCFunction):
             )
         string_lists.insert(0, [str(i) for i in range(string_lists_count[0])])
         commands: list[str] = []
-        loc = relative_file_name(self.tokenizer.file_path, self.token.line, self.token.col)
-        emit_context(f"Hardcode.repeatLists at {loc}")
         for index in range(len(string_lists[0])):
             try:
                 commands.extend(
@@ -275,8 +268,6 @@ class HardcodeSwitch(JMCFunction):
         scoreboard_player = find_scoreboard_player_type(
             self.raw_args["switch"].token, self.tokenizer
         )
-        loc = relative_file_name(self.tokenizer.file_path, self.token.line, self.token.col)
-        emit_context(f"Hardcode.switch at {loc}")
         for i in range(start_at, count + 1):
             try:
                 func_contents.append(
