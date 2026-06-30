@@ -1,9 +1,10 @@
 from typing import Callable
 
 _message_handler: Callable[[str], None] = print
-_status_handler: Callable[..., None] = lambda action, file_count=None: print(f"{action}")
+_status_handler: Callable[..., None] = lambda action, expected_ticks=None: print(f"{action}")
 _tick_handler: Callable[[], None] = lambda: None
 _done_handler: Callable[[], None] = lambda: None
+_context_handler: Callable[[str], None] = lambda _: None
 
 
 def register_message(fn: Callable[[str], None]) -> None:
@@ -33,6 +34,11 @@ def register_done(fn: Callable[[], None]) -> None:
     _done_handler = fn
 
 
+def register_context(fn: Callable[[str], None]) -> None:
+    global _context_handler
+    _context_handler = fn
+
+
 def emit_message(message: str) -> None:
     """Emit a user-facing message through the registered handler.
 
@@ -41,8 +47,8 @@ def emit_message(message: str) -> None:
     _message_handler(message)
 
 
-def emit_status(action: str, file_count: int | None = None) -> None:
-    _status_handler(action, file_count)
+def emit_status(action: str, expected_ticks: int | None = None) -> None:
+    _status_handler(action, expected_ticks)
 
 
 def emit_tick() -> None:
@@ -51,3 +57,7 @@ def emit_tick() -> None:
 
 def emit_done() -> None:
     _done_handler()
+
+
+def emit_context(context: str) -> None:
+    _context_handler(context)

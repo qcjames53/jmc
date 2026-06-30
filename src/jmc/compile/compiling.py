@@ -11,7 +11,7 @@ from jmc.compile.utils import merge_dicts
 from .pack_version import PackVersionFeature
 from .header import Header
 from .header_parse import parse_header
-from .hooks import emit_done, emit_status, emit_tick
+from .hooks import emit_context, emit_done, emit_status, emit_tick
 from .lexer import Lexer
 from .log import Logger
 from .datapack import DataPack
@@ -349,6 +349,11 @@ def build(
         def write_file(path: Path, content: str) -> None:
             nonlocal files_written
             files_written += 1
+            try:
+                display = path.relative_to(output_folder).as_posix()
+            except ValueError:
+                display = path.name
+            emit_context(f"Writing {display}")
             emit_tick()
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("w+", encoding="utf-8") as file:

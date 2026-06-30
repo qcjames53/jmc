@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from .decorator_parse import DECORATORS
 from .header import Header
-from .hooks import emit_status, emit_tick
+from .hooks import emit_context, emit_status, emit_tick
 from .exception import (
     JMCDecodeJSONError,
     JMCFileNotFoundError,
@@ -243,6 +243,12 @@ class Lexer:
         self.__update_load(file_path_str, raw_string)
 
         self._files_visited += 1
+        base = Path(self.config.target).parent
+        try:
+            display = file_path.relative_to(base).as_posix()
+        except ValueError:
+            display = file_path.name
+        emit_context(display)
         emit_tick()
 
         for command in tokenizer.programs:

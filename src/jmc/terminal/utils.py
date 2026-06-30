@@ -1,5 +1,6 @@
 from enum import Enum
 from getpass import getpass
+import shutil
 import sys
 import time
 from threading import Event, Lock, Thread
@@ -15,6 +16,7 @@ class Colors(Enum):
     INFO = "\033[94m"
     INPUT = "\033[96m"
     PURPLE = "\033[35m"
+    CONTEXT = "\033[90m"
     FAIL = "\033[91m"
     FAIL_BOLD = "\033[1;91m"
     ENDC = "\033[0m"
@@ -22,39 +24,33 @@ class Colors(Enum):
     NONE = "\033[0m"
 
 
-TICK_SYMBOL = "."
-TICK_SPINNER = ["|","/","-","\\"]
-
-# TICK_SYMBOL = "▪"
-# TICK_SPINNER = ["⬝","▪","■","▪"]
-
-# TICK_SYMBOL = "."
-# TICK_SPINNER = [".","o","O","0","@","0","O","o"]
-
-TICK_SPINNER_DELAY = 1 / 15  # In seconds
+#SPINNER_FRAMES = ["|","/","-","\\"]
+SPINNER_FRAMES = ["▪", "■", "▪", "🞌"]
+SPINNER_DELAY = 1 / 10  # In seconds
 
 _tty_mode: bool = sys.stdout.isatty()
-_tick_header: str = ""
-_tick_count: int = 0
-_tick_line_open: bool = False
 _phase_start: float = 0.0
 _tty_lock: Lock = Lock()
 _spinner_stop: Event = Event()
 _spinner_frame: int = 0
 _spinner_thread: Thread | None = None
+_action: str | None = ""
+_context: str | None = ""
+_expected_ticks: int | None = None
+_tick_count: int = 0
 
 
 def _spinner_worker() -> None:
     global _spinner_frame
-    while not _spinner_stop.wait(TICK_SPINNER_DELAY):
-        _spinner_frame = (_spinner_frame + 1) % len(TICK_SPINNER)
-        with _tty_lock:
-            sys.stdout.write(f"\b{TICK_SPINNER[_spinner_frame]}")
-            sys.stdout.flush()
+    while not _spinner_stop.wait(SPINNER_DELAY):
+        _spinner_frame = (_spinner_frame + 1) % len(SPINNER_FRAMES)
+        print_status()
 
 
 def _start_spinner() -> None:
     global _spinner_thread, _spinner_frame
+    if not _tty_mode:
+        return
     _spinner_stop.clear()
     _spinner_frame = 0
     _spinner_thread = Thread(target=_spinner_worker, daemon=True)
@@ -70,93 +66,98 @@ def _stop_spinner() -> None:
 
 
 def pprint(values, color: Colors = Colors.NONE, file=sys.stdout):
-    line_was_open = _tick_line_open and (_tty_mode or file is sys.stdout)
-    if line_was_open and _tty_mode:
+    formatted = f"{color.value}{values}{Colors.ENDC.value}" if file.isatty() else str(values)
+    if _tty_mode:
         with _tty_lock:
             sys.stdout.write("\r\033[2K")
             sys.stdout.flush()
-            if file.isatty():
-                print(f"{color.value}{values}{Colors.ENDC.value}", file=file)
-            else:
-                print(values, file=file)
-            sys.stdout.write(f"{Colors.INFO.value}{_tick_header}{TICK_SYMBOL * _tick_count}{TICK_SPINNER[_spinner_frame]}")
-            sys.stdout.flush()
-        return
-    if line_was_open:
-        sys.stdout.write("↵\n")
-        sys.stdout.flush()
-    if file.isatty():
-        print(f"{color.value}{values}{Colors.ENDC.value}", file=file)
+            print(formatted, file=file)
     else:
-        print(values, file=file)
-    if line_was_open:
-        sys.stdout.write(_tick_header + TICK_SYMBOL * _tick_count)
-        sys.stdout.flush()
+        print(formatted, file=file)
+    print_status()
 
 
 def eprint(values, color: Colors = Colors.FAIL):
     pprint(values, color, file=sys.stderr)
 
 
+def print_status() -> None:
+    if not _tty_mode:
+        return
+    with _tty_lock:
+        if not _action:
+            sys.stdout.write("\r\033[2K")
+            sys.stdout.flush()
+            return
+        
+        console_width = shutil.get_terminal_size().columns
+
+        output_text = f"\r\033[2K{Colors.NONE.value}{SPINNER_FRAMES[_spinner_frame]} "
+        output_length = 2  # spinner will always be one char
+        if _expected_ticks:
+            output_text += f"{Colors.YELLOW.value}{_action} {Colors.NONE.value}[{_tick_count}/{_expected_ticks}]…"
+            output_length += len(_action) + len(str(_tick_count)) + len(str(_expected_ticks)) + 5
+        else:
+            output_text += f"{Colors.YELLOW.value}{_action}…"
+            output_length += len(_action) + 1
+
+        if _context and (output_length + 1 + len(_context)) <= console_width:
+            padding = console_width - output_length - len(_context) - 1
+            output_text += (' ' * padding) + f"{Colors.CONTEXT.value}{_context}"
+
+        sys.stdout.write(output_text)
+        sys.stdout.flush()
+
+
 def handle_message_hook(message: str) -> None:
     pprint(message, Colors.YELLOW)
 
 
-def handle_status_hook(action: str, file_count: int | None = None) -> None:
-    global _tick_header, _tick_count, _tick_line_open, _phase_start
-    if _tty_mode:
-        _stop_spinner()
-    _phase_start = time.monotonic()
-    _tick_header = f"{action} {file_count} files " if file_count is not None else f"{action} "
+def handle_status_hook(action: str, expected_ticks: int | None = None) -> None:
+    global _action, _context, _expected_ticks, _tick_count, _phase_start
+    _action = action
+    _context = None
+    _expected_ticks = expected_ticks
     _tick_count = 0
+    _phase_start = time.monotonic()
 
-    if _tick_line_open:
-        sys.stdout.write("\r\033[2K" if _tty_mode else "\n")
-        sys.stdout.flush()
-
-    _tick_line_open = True
-    if _tty_mode:
-        sys.stdout.write(f"{Colors.INFO.value}{_tick_header}{TICK_SPINNER[0]}")
-        sys.stdout.flush()
-        _start_spinner()
-    else:
-        sys.stdout.write(_tick_header)
-        sys.stdout.flush()
+    print_status()
+    _start_spinner()
 
 
 def handle_tick_hook() -> None:
     global _tick_count
     _tick_count += 1
-    if _tty_mode:
-        with _tty_lock:
-            sys.stdout.write(f"\b{TICK_SYMBOL}{TICK_SPINNER[_spinner_frame]}")
-            sys.stdout.flush()
-    else:
-        sys.stdout.write(TICK_SYMBOL)
-        sys.stdout.flush()
-
-
-def abort_progress() -> None:
-    global _tick_line_open
-    if not _tick_line_open:
-        return
-    _tick_line_open = False
-    if _tty_mode:
-        _stop_spinner()
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    print_status()
 
 
 def handle_done_hook() -> None:
-    global _tick_line_open
+    global _action, _context, _expected_ticks, _tick_count
     elapsed = time.monotonic() - _phase_start
-    _tick_line_open = False
+    _tick_count = 0
+    _stop_spinner()
+    pprint(f"{_action} complete ({elapsed:.3f}s)", Colors.INFO)
+    _action = None
+    _context = None
+    _expected_ticks = None
+
+
+def handle_context_hook(context: str) -> None:
+    global _context
+    _context = context
+    # Does not call print_status to limit redraws (spinner worker will call for us)
+
+
+def abort_progress() -> None:
+    global _action, _context, _expected_ticks, _tick_count
+    _action = None
+    _context = None
+    _expected_ticks = None
+    _tick_count = 0
     if _tty_mode:
         _stop_spinner()
-        sys.stdout.write(f"\r{Colors.INFO.value}{_tick_header}{TICK_SYMBOL * _tick_count} done ({elapsed:.3f}s){Colors.ENDC.value}\n")
-    else:
-        sys.stdout.write(f" done ({elapsed:.3f}s)\n")
-    sys.stdout.flush()
+        sys.stdout.write("\r\033[2K")
+        sys.stdout.flush()
 
 
 def get_input(prompt: str = "> ", color: Colors = Colors.INPUT) -> str:
