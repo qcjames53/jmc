@@ -525,11 +525,18 @@ Example: `$var = (const) $(my_int)`""",
                         prefix,
                     )
                     if "\n" in next_chain:
-                        raise _ForceException(
-                            JMCSyntaxException(
-                                "Operator '=' does not support command that return multiple commands",
-                                old_tokens[2] if old_tokens is not None else tokens[2],
-                                tokenizer,
+                        scoreboard_player = find_scoreboard_player_type(
+                            right_token, tokenizer, allow_integer=False
+                        )
+                        assert isinstance(scoreboard_player.value, tuple)
+                        return (
+                            next_chain
+                            + "\n"
+                            + DebugWatch.variable_operation_wrapper(
+                                f"scoreboard players operation {left_token.string} {objective_name} = {scoreboard_player.value[1]} {scoreboard_player.value[0]}",
+                                left_token.string,
+                                objective_name,
+                                datapack,
                             )
                         )
 
