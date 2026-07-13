@@ -524,23 +524,14 @@ Example: `$var = (const) $(my_int)`""",
                         first_arguments,
                         prefix,
                     )
+                    _precommand = ""
                     if "\n" in next_chain:
-                        scoreboard_player = find_scoreboard_player_type(
-                            right_token, tokenizer, allow_integer=False
+                        _precommand, next_chain = next_chain.rsplit(
+                            "\n",
                         )
-                        assert isinstance(scoreboard_player.value, tuple)
-                        return (
-                            next_chain
-                            + "\n"
-                            + DebugWatch.variable_operation_wrapper(
-                                f"scoreboard players operation {left_token.string} {objective_name} = {scoreboard_player.value[1]} {scoreboard_player.value[0]}",
-                                left_token.string,
-                                objective_name,
-                                datapack,
-                            )
-                        )
+                        _precommand += "\n"
 
-                    return DebugWatch.variable_operation_wrapper(
+                    return _precommand + DebugWatch.variable_operation_wrapper(
                         f"""execute store result score {left_token.string} {objective_name} run {next_chain}""".replace(
                             "run execute store", "store"
                         ),

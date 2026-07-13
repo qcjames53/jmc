@@ -507,23 +507,23 @@ def parse_condition(
     prefix: str,
 ) -> tuple[str, str]:
     """
-        Parse condition token(s) (token or list of tokens) to `if ...` and pre-commands with newline
-        Example:
-        ```py
-        condition1, precommands1 = parse_condition(...)
-        condition2, precommands2 = parse_condition(...)
-        commands = [
-            f"{precommands1}execute {condition1} run {datapack.add_private_function("if_else", token, tokenizer)}",
-            f"{precommands2}execute unless ... {condition2} run {datapack.add_private_function("if_else", token, tokenizer)}",
-        ]
-        return datapack.add_raw_private_function("if_else", commands)
-        ```
+    Parse condition token(s) (token or list of tokens) to `if ...` and pre-commands with newline
+    Example:
+    ```py
+    condition1, precommands1 = parse_condition(...)
+    condition2, precommands2 = parse_condition(...)
+    commands = [
+        f"{precommands1}execute {condition1} run {datapack.add_private_function("if_else", token, tokenizer)}",
+        f"{precommands2}execute unless ... {condition2} run {datapack.add_private_function("if_else", token, tokenizer)}",
+    ]
+    return datapack.add_raw_private_function("if_else", commands)
+    ```
 
-        :param condition_token: Token or List of tokens
-        :param tokenizer: Tokenizer
-        :param datapack: Datapack object
-        :param prefix: Prefix of function(for Class feature)
-        :return: tuple of `execute if` command(excluding `execute`) a multiple line string representing precommands
+    :param condition_token: Token or List of tokens
+    :param tokenizer: Tokenizer
+    :param datapack: Datapack object
+    :param prefix: Prefix of function(for Class feature)
+    :return: tuple of `execute if` command(excluding `execute`) a multiple line string representing precommands
     """
     datapack.data.condition_count = 0
     tokens = condition_token if isinstance(condition_token, list) else [condition_token]
@@ -537,7 +537,7 @@ def parse_condition(
 def _resolve_number_macro(raw: str, header: Header) -> str:
     """
     Resolve a header number macro, preserving the sign
-    
+
     :param raw: The token string to resolve, e.g. '5', '-5', or a macro name like 'A'
     :param header: Header containing the number_macros mapping
     :returns: The resolved integer as a string, with the original sign reattached
@@ -546,7 +546,9 @@ def _resolve_number_macro(raw: str, header: Header) -> str:
     return sign + header.number_macros.get(digits, digits)
 
 
-def extract_matches(tokenizer: Tokenizer, token: Token, first_token: Token | None) -> str:
+def extract_matches(
+    tokenizer: Tokenizer, token: Token, first_token: Token | None
+) -> str:
     """
     Parse the value after a 'matches' keyword into vanilla's scoreboard-matches
     format, resolving header number macros and validating the result
