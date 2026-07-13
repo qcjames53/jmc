@@ -31,6 +31,11 @@ VAR_OPERATION_COMMANDS = JMCFunction.get_subclasses(FuncType.VARIABLE_OPERATION)
 CASTING_TYPES = ("command", "const", "var", "score")
 
 
+class _ForceException(Exception):
+    def __init__(self, exception: JMCSyntaxException) -> None:
+        self.exception = exception
+
+
 def variable_operation(
     tokens: list[Token],
     tokenizer: Tokenizer,
@@ -354,7 +359,6 @@ Example: `$var = (const) $(my_int)`""",
         return DebugWatch.variable_operation_wrapper(
             "\n".join(expression_commands), tokens[0].string, objective_name, datapack
         )
-
     if operator in {"++", "--"}:
         if len(tokens) > 2:
             raise JMCSyntaxException(
@@ -503,7 +507,6 @@ Example: `$var = (const) $(my_int)`""",
         left_token = tokens[0]
         right_token = tokens[2]
         # left_token.string operator right_token.string
-
         old_tokens = None
         if len(tokens) > 3 and is_obj_selector(tokens, 2):  # If rvar is obj:selector
             old_tokens = tokens.copy()
@@ -512,14 +515,34 @@ Example: `$var = (const) $(my_int)`""",
         if vanilla_macro is None and len(tokens) > 3:
             if operator == "=":
                 try:
+                    next_chain = variable_operation(
+                        old_tokens[2:] if old_tokens is not None else tokens[2:],
+                        tokenizer,
+                        datapack,
+                        is_execute,
+                        FuncContent,
+                        first_arguments,
+                        prefix,
+                    )
+                    if "\n" in next_chain:
+                        raise _ForceException(
+                            JMCSyntaxException(
+                                "Operator '=' does not support command that return multiple commands",
+                                old_tokens[2] if old_tokens is not None else tokens[2],
+                                tokenizer,
+                            )
+                        )
+
                     return DebugWatch.variable_operation_wrapper(
-                        f"""execute store result score {left_token.string} {objective_name} run {variable_operation(old_tokens[2:] if old_tokens is not None else tokens[2:], tokenizer, datapack, is_execute, FuncContent, first_arguments, prefix)}""".replace(
+                        f"""execute store result score {left_token.string} {objective_name} run {next_chain}""".replace(
                             "run execute store", "store"
                         ),
                         left_token.string,
                         objective_name,
                         datapack,
                     )
+                except _ForceException as force_error:
+                    raise force_error.exception
                 except Exception as error:
                     try:
                         func_content = FuncContent(
