@@ -141,7 +141,7 @@ def variable_operation(
             token=tokenizer.merge_tokens(tokens[2:4]),
             tokenizer=tokenizer,
             suggestion=f"""Consider casting the vanilla macro using `<variable> <operator> (<type>) $(<vanilla_macro>)` syntax.
-Available types are: {", ".join("'"+casting_type+"'" for casting_type in CASTING_TYPES)}
+Available types are: {", ".join("'" + casting_type + "'" for casting_type in CASTING_TYPES)}
 Example: `$var = (const) $(my_int)`""",
         )
 
@@ -158,7 +158,7 @@ Example: `$var = (const) $(my_int)`""",
                 f"Unrecognized casting types for vanilla macro: {casting_type}",
                 token=vanilla_macro,
                 tokenizer=tokenizer,
-                suggestion=f"""Available types are: {", ".join("'"+casting_type+"'" for casting_type in CASTING_TYPES)}""",
+                suggestion=f"""Available types are: {", ".join("'" + casting_type + "'" for casting_type in CASTING_TYPES)}""",
             )
     elif (
         len(tokens) == 4
@@ -172,7 +172,7 @@ Example: `$var = (const) $(my_int)`""",
                 f"Unrecognized casting types for vanilla macro: {casting_type}",
                 token=vanilla_macro,
                 tokenizer=tokenizer,
-                suggestion=f"""Available types are: {", ".join("'"+casting_type+"'" for casting_type in CASTING_TYPES)}""",
+                suggestion=f"""Available types are: {", ".join("'" + casting_type + "'" for casting_type in CASTING_TYPES)}""",
             )
     else:
         vanilla_macro = None
