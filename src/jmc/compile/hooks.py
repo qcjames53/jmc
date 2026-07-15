@@ -1,8 +1,7 @@
 from typing import Callable
 
 _message_handler: Callable[[str], None] = print
-_status_handler: Callable[..., None] = lambda action, expected_ticks=None: print(f"{action}")
-_tick_handler: Callable[[], None] = lambda: None
+_status_handler: Callable[[str], None] = print
 _done_handler: Callable[[], None] = lambda: None
 _context_handler: Callable[[str], None] = lambda _: None
 
@@ -19,14 +18,9 @@ def register_message(fn: Callable[[str], None]) -> None:
     _message_handler = fn
 
 
-def register_status(fn: Callable[..., None]) -> None:
+def register_status(fn: Callable[[str], None]) -> None:
     global _status_handler
     _status_handler = fn
-
-
-def register_tick(fn: Callable[[], None]) -> None:
-    global _tick_handler
-    _tick_handler = fn
 
 
 def register_done(fn: Callable[[], None]) -> None:
@@ -47,12 +41,8 @@ def emit_message(message: str) -> None:
     _message_handler(message)
 
 
-def emit_status(action: str, expected_ticks: int | None = None) -> None:
-    _status_handler(action, expected_ticks)
-
-
-def emit_tick() -> None:
-    _tick_handler()
+def emit_status(action: str) -> None:
+    _status_handler(action)
 
 
 def emit_done() -> None:

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from .decorator_parse import DECORATORS
 from .header import Header
-from .hooks import emit_context, emit_status, emit_tick
+from .hooks import emit_context, emit_status
 from .exception import (
     JMCDecodeJSONError,
     JMCFileNotFoundError,
@@ -20,6 +20,7 @@ from .utils import (
     convention_jmc_to_mc,
     deep_merge,
     is_decorator,
+    relative_display,
 )
 from .command import parse_condition
 from .lexer_func_content import FuncContent
@@ -129,8 +130,7 @@ class Lexer:
         "imports",
         "config",
         "datapack",
-        "_file_count",
-        "_files_visited",
+        "_target_dir",
     )
 
     if_else_box: list[tuple[Token | None, Token | list[Token]]]
@@ -145,33 +145,8 @@ class Lexer:
     """JMC configuration"""
     datapack: DataPack
     """Datapack object"""
-
-    def _count_files(self, entry: Path, seen: set[Path]) -> int:
-        resolved = entry.resolve()
-        if resolved in seen:
-            return 0
-        seen.add(resolved)
-        try:
-            content = resolved.read_text(encoding="utf-8")
-            tokenizer = Tokenizer(content, resolved.as_posix())
-        except Exception:
-            return 1
-        count = 1
-        for command in tokenizer.programs:
-            if len(command) < 2 or command[0].string != "import":
-                continue
-            import_str = command[1].string
-            if import_str.endswith("/*") or import_str.endswith("\\*"):
-                folder = entry.parent / import_str[:-2]
-                if folder.is_dir():
-                    for p in folder.glob("**/*.jmc"):
-                        count += self._count_files(p.resolve(), seen)
-            else:
-                new_path = Path((entry.parent / import_str).resolve())
-                if new_path.suffix != ".jmc":
-                    new_path = Path((entry.parent / (import_str + ".jmc")).resolve())
-                count += self._count_files(new_path, seen)
-        return count
+    _target_dir: Path
+    """Directory containing the target file, used to display import paths relative to it"""
 
     def __init__(self, config: "Configuration", _test_file: str | None = None) -> None:
         logger.debug("Initializing Lexer")
@@ -179,14 +154,10 @@ class Lexer:
         self.imports = set()
         self.if_else_box = []
         self.config = config
+        self._target_dir = Path(config.target).parent
         self.datapack = DataPack(config.namespace, float(config.pack_format), self)
         self.datapack.functions[self.datapack.load_name] = Function()
-        self._files_visited = 0
-        if _test_file is not None:
-            self._file_count = 1
-        else:
-            self._file_count = self._count_files(Path(config.target), set())
-        emit_status("Lexing", self._file_count)
+        emit_status("Lexing")
         self.parse_file(Path(self.config.target), _test_file, is_load=True)
 
         logger.debug("Load Function")
@@ -242,14 +213,7 @@ class Lexer:
 
         self.__update_load(file_path_str, raw_string)
 
-        self._files_visited += 1
-        base = Path(self.config.target).parent
-        try:
-            display = file_path.relative_to(base).as_posix()
-        except ValueError:
-            display = file_path.name
-        emit_context(display)
-        emit_tick()
+        emit_context(relative_display(file_path, self._target_dir))
 
         for command in tokenizer.programs:
             if command[0].string == "function" and not self._is_vanilla_func(command):

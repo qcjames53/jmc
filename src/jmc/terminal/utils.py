@@ -24,9 +24,8 @@ class Colors(Enum):
     NONE = "\033[0m"
 
 
-#SPINNER_FRAMES = ["|","/","-","\\"]
-SPINNER_FRAMES = ["▪", "■", "▪", "🞌"]
-SPINNER_DELAY = 1 / 10  # In seconds
+SPINNER_FRAMES = ["|","/","-","\\"]
+SPINNER_DELAY = 0.0667  # In seconds
 
 _tty_mode: bool = sys.stdout.isatty()
 _phase_start: float = 0.0
@@ -34,10 +33,8 @@ _tty_lock: Lock = Lock()
 _spinner_stop: Event = Event()
 _spinner_frame: int = 0
 _spinner_thread: Thread | None = None
-_action: str | None = ""
-_context: str | None = ""
-_expected_ticks: int | None = None
-_tick_count: int = 0
+_action: str | None = None
+_context: str | None = None
 
 
 def _spinner_worker() -> None:
@@ -47,7 +44,7 @@ def _spinner_worker() -> None:
         print_status()
 
 
-def _start_spinner() -> None:
+def start_spinner() -> None:
     global _spinner_thread, _spinner_frame
     if not _tty_mode:
         return
@@ -57,8 +54,9 @@ def _start_spinner() -> None:
     _spinner_thread.start()
 
 
-def _stop_spinner() -> None:
+def stop_spinner() -> None:
     global _spinner_thread
+    print_status()
     if _spinner_thread is not None and _spinner_thread.is_alive():
         _spinner_stop.set()
         _spinner_thread.join()
@@ -89,17 +87,12 @@ def print_status() -> None:
             sys.stdout.write("\r\033[2K")
             sys.stdout.flush()
             return
-        
+
         console_width = shutil.get_terminal_size().columns
 
         output_text = f"\r\033[2K{Colors.NONE.value}{SPINNER_FRAMES[_spinner_frame]} "
-        output_length = 2  # spinner will always be one char
-        if _expected_ticks:
-            output_text += f"{Colors.YELLOW.value}{_action} {Colors.NONE.value}[{_tick_count}/{_expected_ticks}]…"
-            output_length += len(_action) + len(str(_tick_count)) + len(str(_expected_ticks)) + 5
-        else:
-            output_text += f"{Colors.YELLOW.value}{_action}…"
-            output_length += len(_action) + 1
+        output_length = 3 + len(_action) # spinner will always be one char
+        output_text += f"{Colors.YELLOW.value}{_action}…"
 
         if _context and (output_length + 1 + len(_context)) <= console_width:
             padding = console_width - output_length - len(_context) - 1
@@ -113,51 +106,34 @@ def handle_message_hook(message: str) -> None:
     pprint(message, Colors.YELLOW)
 
 
-def handle_status_hook(action: str, expected_ticks: int | None = None) -> None:
-    global _action, _context, _expected_ticks, _tick_count, _phase_start
+def handle_status_hook(action: str) -> None:
+    global _action, _context, _phase_start
     _action = action
     _context = None
-    _expected_ticks = expected_ticks
-    _tick_count = 0
     _phase_start = time.monotonic()
-
-    print_status()
-    _start_spinner()
-
-
-def handle_tick_hook() -> None:
-    global _tick_count
-    _tick_count += 1
-    print_status()
 
 
 def handle_done_hook() -> None:
-    global _action, _context, _expected_ticks, _tick_count
+    global _action, _context
     elapsed = time.monotonic() - _phase_start
-    _tick_count = 0
-    _stop_spinner()
     pprint(f"{_action} complete ({elapsed:.3f}s)", Colors.INFO)
     _action = None
     _context = None
-    _expected_ticks = None
 
 
 def handle_context_hook(context: str) -> None:
     global _context
     _context = context
-    # Does not call print_status to limit redraws (spinner worker will call for us)
 
 
 def abort_progress() -> None:
-    global _action, _context, _expected_ticks, _tick_count
-    _action = None
-    _context = None
-    _expected_ticks = None
-    _tick_count = 0
+    global _action, _context
     if _tty_mode:
-        _stop_spinner()
+        stop_spinner()
         sys.stdout.write("\r\033[2K")
         sys.stdout.flush()
+    _action = None
+    _context = None
 
 
 def get_input(prompt: str = "> ", color: Colors = Colors.INPUT) -> str:

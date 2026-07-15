@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import functools
+from pathlib import Path
 from random import Random
 import re
 from json import JSONEncoder, dumps
@@ -263,6 +264,20 @@ def get_mc_uuid(seed: Any) -> str:
 
 def is_decorator(string: str) -> bool:
     return len(string) > 2 and string.startswith("@")
+
+
+def relative_display(path: Path, base: Path) -> str:
+    """
+    Display-friendly filepath relative to base, falling back to just the file name if path isn't inside base.
+
+    :param path: Path to display
+    :param base: Base path to make it relative to
+    :return: Relative path as posix string, or the file name if unrelated
+    """
+    try:
+        return path.relative_to(base).as_posix()
+    except ValueError:
+        return path.name
 
 
 def deep_merge(first: dict, second: dict) -> dict:
