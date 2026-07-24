@@ -219,6 +219,36 @@ execute if score @s test matches -5 run say Hello World
             """),
         )
 
+    def test_vanilla_matches_macro_passthrough(self):
+        pack = JMCTestPack().set_jmc_file("""
+$execute unless score @s foo matches $(value) run say "hi";
+$execute unless score @s foo matches -$(value) run say "hi";
+$execute unless score @s foo matches $(value).. run say "hi";
+$execute unless score @s foo matches ..$(value) run say "hi";
+$execute unless score @s foo matches $(value)..5 run say "hi";
+$execute unless score @s foo matches 0..$(value) run say "hi";
+        """).build()
+
+        self.assertDictEqual(
+            pack.built,
+            string_to_tree_dict("""
+> VIRTUAL/data/minecraft/tags/functions/load.json
+{
+    "values": [
+        "TEST:__load__"
+    ]
+}
+> VIRTUAL/data/TEST/functions/__load__.mcfunction
+scoreboard objectives add __variable__ dummy
+$execute unless score @s foo matches $(value) run say hi
+$execute unless score @s foo matches -$(value) run say hi
+$execute unless score @s foo matches $(value).. run say hi
+$execute unless score @s foo matches ..$(value) run say hi
+$execute unless score @s foo matches $(value)..5 run say hi
+$execute unless score @s foo matches 0..$(value) run say hi
+            """),
+        )
+
     def test_logic_gate(self):
         pack = JMCTestPack().set_jmc_file("""
 if (!entity @s[type=skeleton] || (entity @s[type=zombie] && $deathCount>5)) {

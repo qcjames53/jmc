@@ -808,6 +808,11 @@ class FuncContent:
                 return None
             return self.command[key_pos]
 
+        # Collapse vanilla macros (e.g. `$(opp_team)`) after 'matches' into a
+        # single token before inspecting them, same as condition_to_ast does.
+        for pos in range(key_pos + 1, len(self.command)):
+            self.tokenizer.merge_vanilla_macro(self.command, pos)
+
         token_1 = _get_token(key_pos + 1)
         if token_1 is None:
             raise MinecraftSyntaxWarning(

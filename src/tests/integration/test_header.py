@@ -326,6 +326,14 @@ if (test:@s matches A..) {
 #define A 1
         """).build()
 
+    def test_flow_control_vanilla_macro_rejected(self):
+        with self.assertRaises(JMCSyntaxException):
+            JMCTestPack().set_jmc_file("""
+$if (test:@s matches $(min)..10) {
+    say "hi";
+}
+        """).build()
+
 
 if __name__ == "__main__":
     unittest.main()

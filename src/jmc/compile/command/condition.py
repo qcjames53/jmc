@@ -546,6 +546,15 @@ def _resolve_number_macro(raw: str, header: Header) -> str:
     return sign + header.number_macros.get(digits, digits)
 
 
+def _is_vanilla_macro(value: str) -> bool:
+    """
+    Whether a matches-value string is a vanilla `$(macro)` substitution
+    (resolved by Minecraft at runtime, not by JMC at compile time)
+    """
+    value = value[1:] if value.startswith("-") else value
+    return value.startswith("$(") and value.endswith(")")
+
+
 def extract_matches(
     tokenizer: Tokenizer, token: Token, first_token: Token | None
 ) -> str:
@@ -558,14 +567,17 @@ def extract_matches(
     :param first_token: The JMC variable/selector token to the left of 'matches' in
         JMC's own `if (var matches ...)` syntax, or None when parsing a bare vanilla
         command.
-    :return: The resolved matches value, e.g. '0..5', '5..', '..5', or (vanilla-only) '5'
+    :return: The resolved matches value, e.g. '0..5', '5..', '..5', or vanilla-only '5', $(foo), $(foo)..
     """
     match_tokens_ = tokenizer.split_keyword_token(token, "..")
     match_tokens = tokenizer.find_token(match_tokens_, "..")
     header = Header()
 
     if len(match_tokens) == 1 and first_token is None:
-        value = _resolve_number_macro(match_tokens[0][0].string, header)
+        raw = match_tokens[0][0].string
+        if _is_vanilla_macro(raw):
+            return raw
+        value = _resolve_number_macro(raw, header)
         if not is_number(value):
             raise JMCSyntaxException(
                 f"Expected integer after 'matches' (got '{value}')",
@@ -607,26 +619,35 @@ def extract_matches(
             tokenizer,
             suggestion="There must be at least 1 integer. '..' doesn't mean anything.",
         )
+    first_raw = match_tokens[0][0].string if has_first else ""
+    second_raw = match_tokens[1][0].string if has_second else ""
+    first_is_not_macro = first_token is not None or not has_first or not _is_vanilla_macro(first_raw)
+    second_is_not_macro = first_token is not None or not has_second or not _is_vanilla_macro(second_raw)
+
     first = (
-        _resolve_number_macro(match_tokens[0][0].string, header) if has_first else ""
+        _resolve_number_macro(first_raw, header)
+        if has_first and first_is_not_macro
+        else first_raw
     )
     second = (
-        _resolve_number_macro(match_tokens[1][0].string, header) if has_second else ""
+        _resolve_number_macro(second_raw, header)
+        if has_second and second_is_not_macro
+        else second_raw
     )
-    if first and not is_number(first):
+    if first and first_is_not_macro and not is_number(first):
         raise JMCSyntaxException(
             f"Expected integer after 'matches' (got '{first}')",
             match_tokens[0][0],
             tokenizer,
         )
-    if second and not is_number(second):
+    if second and second_is_not_macro and not is_number(second):
         raise JMCSyntaxException(
             f"Expected integer after '..' (got '{second}')",
             match_tokens[1][0],
             tokenizer,
         )
-    first_int = int(first) if has_first else None
-    second_int = int(second) if has_second else None
+    first_int = int(first) if has_first and first_is_not_macro else None
+    second_int = int(second) if has_second and second_is_not_macro else None
 
     if first_int is not None and second_int is not None:
         if first_int == second_int:
@@ -647,4 +668,6 @@ def extract_matches(
                 tokenizer,
                 suggestion=f"Did you mean {match_tokens[1][0].string}..{match_tokens[0][0].string} ?",
             )
-    return f"{'' if first_int is None else first_int}..{'' if second_int is None else second_int}"
+    first_display = "" if not has_first else (first_int if first_is_not_macro else first)
+    second_display = "" if not has_second else (second_int if second_is_not_macro else second)
+    return f"{first_display}..{second_display}"
